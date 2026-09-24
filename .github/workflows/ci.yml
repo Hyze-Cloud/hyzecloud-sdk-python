@@ -1,0 +1,83 @@
+# CI do SDK Python. Roda em PR, em push na main e no agendamento diário — o job de rotas
+# precisa do agendamento porque a API vive em outro repo e pode sumir com uma rota sem que
+# nada aqui mude.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Ruff · mypy · pytest (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup uv (and Python ${{ matrix.python }})
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+
+      # Biblioteca não versiona lock: o `requires-python` e as faixas do pyproject é que mandam.
+      - name: Install
+        run: uv sync --extra dev --no-progress
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Typecheck (strict)
+        run: uv run mypy
+
+      - name: Test
+        run: uv run pytest -q
+
+  api-routes:
+    name: API routes (live)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --no-progress
+
+      # Sem isso o check não distingue rota viva de rota morta: se uma rota inventada não
+      # devolver 404, um 404 legítimo deixaria de significar "a rota sumiu".
+      - name: Negative control (an invented route must 404)
+        run: |
+          code="$(curl -s -o /dev/null -w "%{http_code}" "https://api.hyzecloud.com/api/rota-inventada-do-ci")"
+          echo "invented route -> $code"
+          if [ "$code" != "404" ]; then
+            echo "expected a 404 from an invented route" >&2
+            exit 1
+          fi
+
+      - name: Every route the SDK calls still exists
+        run: uv run python scripts/check_api_routes.py

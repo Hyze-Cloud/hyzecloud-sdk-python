@@ -1,0 +1,133 @@
+# Publica o pacote no PyPI a partir de uma tag `v<versão>` — a tag TEM que bater com a versão
+# do pyproject.toml (o check abaixo aborta antes de qualquer publish).
+#   git tag v0.1.1 && git push origin v0.1.1
+#
+# Autenticação: Trusted Publishing (OIDC) — não existe token do PyPI em lugar nenhum.
+# O PyPI amarra o pacote a ESTE repositório e a ESTE arquivo de workflow, num cadastro que é
+# feito uma vez em https://pypi.org/manage/account/publishing/ (Pending publisher):
+#   PyPI Project Name: hyze-cloud
+#   Owner:             Hyze-Cloud
+#   Repository name:   hyzecloud-sdk-python
+#   Workflow name:     release.yml
+#   Environment:       (deixe vazio — este workflow não usa environment)
+# Sem esse cadastro o publish falha com "trusted publisher" e nenhuma tag resolve.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # o OIDC que o PyPI troca pelo token de publish
+
+jobs:
+  checks:
+    name: Ruff · mypy · pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --extra dev --no-progress
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Typecheck (strict)
+        run: uv run mypy
+
+      - name: Test
+        run: uv run pytest -q
+
+  api-routes:
+    name: API routes (live)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --no-progress
+
+      - name: Negative control (an invented route must 404)
+        run: |
+          code="$(curl -s -o /dev/null -w "%{http_code}" "https://api.hyzecloud.com/api/rota-inventada-do-ci")"
+          echo "invented route -> $code"
+          if [ "$code" != "404" ]; then
+            echo "expected a 404 from an invented route" >&2
+            exit 1
+          fi
+
+      # Cliente publicado chamando rota morta é 404 pro usuário.
+      - name: Every route the SDK calls still exists
+        run: uv run python scripts/check_api_routes.py
+
+  publish:
+    name: Build and publish to PyPI
+    needs: [checks, api-routes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+
+      - name: Verify tag matches pyproject version
+        run: |
+          PKG="$(uv run --no-project python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")"
+          case "${GITHUB_REF}" in
+            refs/tags/*)
+              TAG="${GITHUB_REF_NAME#v}"
+              if [ "$TAG" != "$PKG" ]; then
+                echo "Tag v$TAG does not match pyproject version $PKG" >&2
+                exit 1
+              fi
+              echo "tag v$TAG == version $PKG" ;;
+            *) echo "workflow_dispatch: publishing version $PKG (no tag to check)" ;;
+          esac
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Check the artifacts before shipping them
+        run: |
+          ls -la dist/
+          uv run --no-project python - <<'PY'
+          import glob, tomllib, zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          meta = next(n for n in names if n.endswith("METADATA"))
+          text = zipfile.ZipFile(wheel).read(meta).decode()
+          version = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]
+          assert f"Version: {version}" in text, text
+          assert any(n.endswith("hyzecloud/py.typed") for n in names), names
+          assert any(n.endswith("hyzecloud/client.py") for n in names), names
+          print(f"wheel ok: {len(names)} files, version {version}, py.typed present")
+          PY
+
+      # Sem token: o `id-token: write` no topo é o que o PyPI troca pelo publish token.
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
