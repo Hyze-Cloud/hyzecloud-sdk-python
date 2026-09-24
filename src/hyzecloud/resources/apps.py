@@ -8,6 +8,8 @@ to the API's camelCase (``memoryMB``).
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .._url import segment
@@ -22,9 +24,13 @@ def _zip_file(source: Any, filename: str) -> Any:
     """Normalize a ZIP source into what ``httpx`` needs for a multipart part.
 
     Accepts a path (``str``/``os.PathLike``), raw ``bytes``, or an open binary file object.
+    A path is read into memory, the same way the TypeScript SDK's ``readFileSync`` does — an
+    open file object is streamed instead, so pass one for large archives.
     """
     if isinstance(source, (bytes, bytearray, memoryview)):
         return (filename, bytes(source), "application/zip")
+    if isinstance(source, (str, os.PathLike)):
+        return (filename, Path(source).read_bytes(), "application/zip")
     return (filename, source, "application/zip")
 
 

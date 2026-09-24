@@ -186,6 +186,58 @@ def test_github_owner_and_repo_are_encoded(client: HyzeCloud, calls: list[httpx.
 # ── Bodies ──────────────────────────────────────────────────────────────────
 
 
+def test_deploy_from_zip_reads_a_path_instead_of_sending_the_path_text(
+    client: HyzeCloud, calls: list[httpx.Request], tmp_path
+) -> None:
+    """A path must upload the file's bytes.
+
+    httpx takes a bare `str` in a multipart part as the part's *content*, so passing the path
+    straight through uploads the path text and the ZIP never arrives.
+    """
+    archive = tmp_path / "app.zip"
+    archive.write_bytes(b"PK\x03\x04ZIP-CONTENT")
+
+    client.apps.deploy_from_zip(file=str(archive), name="n", runtime="python", memory_mb=256)
+
+    body = calls[0].content
+    assert b"ZIP-CONTENT" in body
+    assert str(archive).encode() not in body
+
+
+def test_deploy_from_zip_accepts_a_pathlib_path(
+    client: HyzeCloud, calls: list[httpx.Request], tmp_path
+):
+    archive = tmp_path / "app.zip"
+    archive.write_bytes(b"PK\x03\x04PATHLIB-CONTENT")
+
+    client.apps.deploy_from_zip(file=archive, name="n", runtime="python", memory_mb=256)
+
+    assert b"PATHLIB-CONTENT" in calls[0].content
+
+
+def test_deploy_from_zip_accepts_an_open_file(
+    client: HyzeCloud, calls: list[httpx.Request], tmp_path
+):
+    archive = tmp_path / "app.zip"
+    archive.write_bytes(b"PK\x03\x04OPENFILE-CONTENT")
+
+    with archive.open("rb") as handle:
+        client.apps.deploy_from_zip(file=handle, name="n", runtime="python", memory_mb=256)
+
+    assert b"OPENFILE-CONTENT" in calls[0].content
+
+
+def test_inspect_env_also_reads_a_path(
+    client: HyzeCloud, calls: list[httpx.Request], tmp_path
+) -> None:
+    archive = tmp_path / "app.zip"
+    archive.write_bytes(b"PK\x03\x04INSPECT-CONTENT")
+
+    client.apps.inspect_env(str(archive))
+
+    assert b"INSPECT-CONTENT" in calls[0].content
+
+
 def test_deploy_from_zip_sends_multipart_with_the_api_field_names(
     client: HyzeCloud, calls: list[httpx.Request]
 ) -> None:

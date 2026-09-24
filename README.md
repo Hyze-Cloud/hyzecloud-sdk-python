@@ -95,7 +95,8 @@ client.apps.get_env("app_001")
 client.apps.set_env("app_001", {"NODE_ENV": "production"})
 client.apps.deployments("app_001", limit=30)
 
-# Deploy from a ZIP — a path, raw bytes, or an open file all work
+# Deploy from a ZIP — a path, raw bytes, or an open file all work.
+# A path is read into memory; pass an open file for a large archive (it gets streamed).
 client.apps.deploy_from_zip(
     file="./app.zip",
     name="my-api",
