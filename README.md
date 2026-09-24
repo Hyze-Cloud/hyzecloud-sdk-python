@@ -226,7 +226,7 @@ and publishes to PyPI through **Trusted Publishing** (OIDC) — there is no API 
 - [Hyze Cloud Docs](https://docs.hyzecloud.app)
 - [API introduction](https://docs.hyzecloud.app/api-reference/introduction)
 - [Rate limits](https://docs.hyzecloud.app/en/concepts/rate-limits)
-- [Changelog](./CHANGELOG.md)
+- [Changelog](https://github.com/Hyze-Cloud/hyzecloud-sdk-python/blob/main/CHANGELOG.md)
 
 ## License
 
