@@ -5,6 +5,8 @@ All notable changes to `hyze-cloud` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-31
+
 ### Added
 
 - `apps`: `deployment`, `deployment_logs`, `build_progress`, `cancel_deployment`, `retry_deployment`,
