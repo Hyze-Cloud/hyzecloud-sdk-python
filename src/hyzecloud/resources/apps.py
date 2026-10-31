@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -249,4 +250,93 @@ class AppsResource:
         """Download a backup archive."""
         return self._client.request(
             "GET", f"/apps/{segment(app_id)}/backups/{segment(backup_id)}/download"
+        )
+
+    # ── Deployments ─────────────────────────────────────────────────────────
+
+    def deployment(self, app_id: str, deployment_id: str) -> Any:
+        """One deployment's detail, with the stage timeline."""
+        return self._client.request(
+            "GET", f"/apps/{segment(app_id)}/deployments/{segment(deployment_id)}"
+        )
+
+    def deployment_logs(self, app_id: str, deployment_id: str) -> Any:
+        """The install and build log of a deployment."""
+        return self._client.request(
+            "GET", f"/apps/{segment(app_id)}/deployments/{segment(deployment_id)}/logs"
+        )
+
+    def build_progress(self, app_id: str, deployment_id: str | None = None) -> Any:
+        """Live build progress: of ``deployment_id``, or of the latest build when omitted."""
+        base = f"/apps/{segment(app_id)}"
+        if deployment_id is None:
+            return self._client.request("GET", f"{base}/build-progress")
+        return self._client.request(
+            "GET", f"{base}/deployments/{segment(deployment_id)}/build-progress"
+        )
+
+    def cancel_deployment(self, app_id: str, deployment_id: str) -> Any:
+        """Cancel a queued or in-progress deployment."""
+        return self._client.request(
+            "POST", f"/apps/{segment(app_id)}/deployments/{segment(deployment_id)}/cancel"
+        )
+
+    def retry_deployment(self, app_id: str, deployment_id: str) -> Any:
+        """Retry a failed deployment with the same source."""
+        return self._client.request(
+            "POST", f"/apps/{segment(app_id)}/deployments/{segment(deployment_id)}/retry"
+        )
+
+    def rollback_deployment(self, app_id: str, deployment_id: str) -> Any:
+        """Go back to an older deployment (re-deploys that source)."""
+        return self._client.request(
+            "POST", f"/apps/{segment(app_id)}/deployments/{segment(deployment_id)}/rollback"
+        )
+
+    def rebuild(self, app_id: str) -> Any:
+        """Build and deploy again with the app's current files."""
+        return self._client.request("POST", f"/apps/{segment(app_id)}/rebuild")
+
+    # ── Backups, transfer and stats ─────────────────────────────────────────
+
+    def set_auto_backup(self, app_id: str, enabled: bool) -> Any:
+        """Turn the daily automatic backup on or off. Needs a plan with automatic backup."""
+        return self._client.request(
+            "PUT", f"/apps/{segment(app_id)}/auto-backup", json={"enabled": enabled}
+        )
+
+    def transfer(self, app_id: str, target_organization_id: str) -> Any:
+        """Move the app to another workspace."""
+        return self._client.request(
+            "POST",
+            f"/apps/{segment(app_id)}/transfer",
+            json={"targetOrganizationId": target_organization_id},
+        )
+
+    def stats(self, app_ids: Sequence[str]) -> Any:
+        """Runtime stats of several apps in one call (ids from other workspaces are ignored)."""
+        return self._client.request("GET", "/apps/stats", query={"ids": ",".join(app_ids)})
+
+    # ── Custom domains ──────────────────────────────────────────────────────
+
+    def list_domains(self, app_id: str) -> Any:
+        """The custom domains of an app."""
+        return self._client.request("GET", f"/apps/{segment(app_id)}/domains")
+
+    def add_domain(self, app_id: str, hostname: str) -> Any:
+        """Add a custom domain; then point its CNAME at ``cnameTarget`` and ``verify_domain``."""
+        return self._client.request(
+            "POST", f"/apps/{segment(app_id)}/domains", json={"hostname": hostname}
+        )
+
+    def verify_domain(self, app_id: str, domain_id: str) -> Any:
+        """Check the domain's DNS and provision its SSL certificate."""
+        return self._client.request(
+            "POST", f"/apps/{segment(app_id)}/domains/{segment(domain_id)}/verify"
+        )
+
+    def remove_domain(self, app_id: str, domain_id: str) -> Any:
+        """Remove a custom domain from the app."""
+        return self._client.request(
+            "DELETE", f"/apps/{segment(app_id)}/domains/{segment(domain_id)}"
         )

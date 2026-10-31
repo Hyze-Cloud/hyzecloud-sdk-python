@@ -3,6 +3,22 @@
 All notable changes to `hyze-cloud` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [0.2.0] - 2026-10-31
+
+### Added
+
+- `apps`: `deployment`, `deployment_logs`, `build_progress`, `cancel_deployment`, `retry_deployment`,
+  `rollback_deployment`, `rebuild`, `set_auto_backup`, `transfer` and `stats` (runtime stats of
+  several apps in one call).
+- `apps`: custom domains with `list_domains`, `add_domain`, `verify_domain` and `remove_domain`, with
+  typed `AppDomain` shapes (`status`, `sslStatus`, `cnameTarget`).
+- `databases.stats_many` (runtime stats of several databases in one call).
+- `tags` resource: `list`, `create`, `update`, `delete` and `set_links`.
+- Tests for every new route (method, path, body and query), a check that ids with special
+  characters are URL-encoded, and a guard that fails when a public method has no test.
+
 ## [0.1.1] — 2026-09-23
 
 ### Fixed

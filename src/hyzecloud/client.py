@@ -29,6 +29,7 @@ from .resources.databases import DatabasesResource
 from .resources.github import GithubResource
 from .resources.invoices import InvoicesResource
 from .resources.plans import PlansResource
+from .resources.tags import TagsResource
 
 __all__ = ["DEFAULT_BASE_URL", "AsyncHyzeCloud", "HyzeCloud", "create_hyze_client"]
 
@@ -170,6 +171,7 @@ class _BaseClient(ABC):
         self.invoices = InvoicesResource(self)
         self.github = GithubResource(self)
         self.plans = PlansResource(self)
+        self.tags = TagsResource(self)
 
     @property
     def base_url(self) -> str:
