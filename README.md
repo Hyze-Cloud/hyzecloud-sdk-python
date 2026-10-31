@@ -122,6 +122,27 @@ client.apps.deploy_from_repo(
 client.apps.create_backup("app_001")
 client.apps.list_backups("app_001")
 client.apps.restore_backup("app_001", "backup_001")
+client.apps.set_auto_backup("app_001", True)
+
+# One deploy: details with the stage timeline, build log, live progress
+client.apps.deployment("app_001", "dep_001")
+client.apps.deployment_logs("app_001", "dep_001")
+client.apps.build_progress("app_001")  # latest build, or pass a deployment id
+
+# Act on a deploy
+client.apps.cancel_deployment("app_001", "dep_001")
+client.apps.retry_deployment("app_001", "dep_001")  # same source, after a failure
+client.apps.rollback_deployment("app_001", "dep_001")  # back to an older deploy
+client.apps.rebuild("app_001")  # rebuild with the current files
+
+# Runtime stats for several apps at once
+client.apps.stats(["app_001", "app_002"])
+
+# Custom domains: add, point the CNAME at `cnameTarget`, then verify
+domain = client.apps.add_domain("app_001", "api.example.com")["domain"]
+client.apps.verify_domain("app_001", domain["id"])
+client.apps.list_domains("app_001")
+client.apps.remove_domain("app_001", domain["id"])
 ```
 
 ## Databases
@@ -132,7 +153,20 @@ client.databases.list()
 client.databases.stats("db_001")
 client.databases.rotate_password("db_001")
 client.databases.create_backup("db_001")
+client.databases.stats_many(["db_001", "db_002"])  # runtime stats, one call
 client.databases.restore("db_001", "backup_001")
+```
+
+## Tags
+
+Labels to group apps and databases. A tag is a filter: it gives no access and has no quota.
+
+```python
+tag = client.tags.create(name="production", color="#7c46ce")["tag"]
+client.tags.set_links(kind="app", id="app_001", tag_ids=[tag["id"]])  # final list, not an add
+client.tags.list()
+client.tags.update(tag["id"], name="prod")
+client.tags.delete(tag["id"])
 ```
 
 ## API keys, invoices, GitHub, plans

@@ -358,3 +358,121 @@ def test_inspect_env_uses_the_default_filename(
 def test_apps_list_can_scope_by_organization(client: HyzeCloud, calls: list[httpx.Request]) -> None:
     client.apps.list(organization_id="org_1")
     assert calls[0].url.params["organizationId"] == "org_1"
+
+
+# ── Deployments, domains, stats and tags ────────────────────────────────────
+
+DEPLOYMENT_ID = "dep_001"
+DOMAIN_ID = "dom_001"
+TAG_ID = "tag_001"
+
+
+def test_apps_deployment_routes(client: HyzeCloud, calls: list[httpx.Request]) -> None:
+    client.apps.deployment(APP_ID, DEPLOYMENT_ID)
+    client.apps.deployment_logs(APP_ID, DEPLOYMENT_ID)
+    client.apps.build_progress(APP_ID)
+    client.apps.build_progress(APP_ID, DEPLOYMENT_ID)
+    client.apps.cancel_deployment(APP_ID, DEPLOYMENT_ID)
+    client.apps.retry_deployment(APP_ID, DEPLOYMENT_ID)
+    client.apps.rollback_deployment(APP_ID, DEPLOYMENT_ID)
+    client.apps.rebuild(APP_ID)
+
+    base = f"/api/apps/{APP_ID}"
+    assert [hit(r) for r in calls] == [
+        ("GET", f"{base}/deployments/{DEPLOYMENT_ID}"),
+        ("GET", f"{base}/deployments/{DEPLOYMENT_ID}/logs"),
+        ("GET", f"{base}/build-progress"),
+        ("GET", f"{base}/deployments/{DEPLOYMENT_ID}/build-progress"),
+        ("POST", f"{base}/deployments/{DEPLOYMENT_ID}/cancel"),
+        ("POST", f"{base}/deployments/{DEPLOYMENT_ID}/retry"),
+        ("POST", f"{base}/deployments/{DEPLOYMENT_ID}/rollback"),
+        ("POST", f"{base}/rebuild"),
+    ]
+
+
+def test_apps_domain_routes(client: HyzeCloud, calls: list[httpx.Request]) -> None:
+    client.apps.list_domains(APP_ID)
+    client.apps.add_domain(APP_ID, "api.example.com")
+    client.apps.verify_domain(APP_ID, DOMAIN_ID)
+    client.apps.remove_domain(APP_ID, DOMAIN_ID)
+
+    base = f"/api/apps/{APP_ID}/domains"
+    assert [hit(r) for r in calls] == [
+        ("GET", base),
+        ("POST", base),
+        ("POST", f"{base}/{DOMAIN_ID}/verify"),
+        ("DELETE", f"{base}/{DOMAIN_ID}"),
+    ]
+    assert json.loads(calls[1].content) == {"hostname": "api.example.com"}
+
+
+def test_apps_auto_backup_transfer_and_stats(client: HyzeCloud, calls: list[httpx.Request]) -> None:
+    client.apps.set_auto_backup(APP_ID, True)
+    client.apps.transfer(APP_ID, "ws_2")
+    client.apps.stats([APP_ID, "app_002"])
+
+    assert [hit(r) for r in calls] == [
+        ("PUT", f"/api/apps/{APP_ID}/auto-backup"),
+        ("POST", f"/api/apps/{APP_ID}/transfer"),
+        ("GET", "/api/apps/stats"),
+    ]
+    assert json.loads(calls[0].content) == {"enabled": True}
+    assert json.loads(calls[1].content) == {"targetOrganizationId": "ws_2"}
+    assert calls[2].url.params["ids"] == f"{APP_ID},app_002"
+
+
+def test_databases_stats_many(client: HyzeCloud, calls: list[httpx.Request]) -> None:
+    client.databases.stats_many([DB_ID, "db_002"])
+
+    assert hit(calls[0]) == ("GET", "/api/databases/stats")
+    assert calls[0].url.params["ids"] == f"{DB_ID},db_002"
+
+
+def test_tags_routes_and_bodies(client: HyzeCloud, calls: list[httpx.Request]) -> None:
+    client.tags.list()
+    client.tags.create(name="prod", color="#7c46ce")
+    client.tags.create(name="sem-cor")
+    client.tags.update(TAG_ID, name="novo")
+    client.tags.delete(TAG_ID)
+    client.tags.set_links(kind="app", id=APP_ID, tag_ids=[TAG_ID, "tag_002"])
+
+    assert [hit(r) for r in calls] == [
+        ("GET", "/api/tags/"),
+        ("POST", "/api/tags/"),
+        ("POST", "/api/tags/"),
+        ("PATCH", f"/api/tags/{TAG_ID}"),
+        ("DELETE", f"/api/tags/{TAG_ID}"),
+        ("PUT", "/api/tags/links"),
+    ]
+    assert json.loads(calls[1].content) == {"name": "prod", "color": "#7c46ce"}
+    assert json.loads(calls[2].content) == {"name": "sem-cor"}  # sem cor, não manda null
+    assert json.loads(calls[3].content) == {"name": "novo"}
+    assert json.loads(calls[5].content) == {
+        "kind": "app",
+        "id": APP_ID,
+        "tagIds": [TAG_ID, "tag_002"],
+    }
+
+
+def test_special_characters_in_ids_are_encoded(
+    client: HyzeCloud, calls: list[httpx.Request]
+) -> None:
+    client.apps.deployment_logs("a/../b", "d?x=1")
+
+    assert calls[0].url.raw_path.decode() == "/api/apps/a%2F..%2Fb/deployments/d%3Fx%3D1/logs"
+
+
+def test_every_public_method_is_exercised(client: HyzeCloud) -> None:
+    """A new resource method without a test here fails this guard."""
+    from pathlib import Path
+
+    source = Path(__file__).read_text()
+    missing = []
+    for name in ("apps", "databases", "api_keys", "invoices", "github", "plans", "tags"):
+        resource = getattr(client, name)
+        for method in dir(resource):
+            if method.startswith("_") or not callable(getattr(resource, method)):
+                continue
+            if f"client.{name}.{method}(" not in source:
+                missing.append(f"{name}.{method}")
+    assert missing == []

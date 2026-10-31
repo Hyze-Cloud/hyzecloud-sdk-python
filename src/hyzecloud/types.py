@@ -21,6 +21,9 @@ __all__ = [
     "AppDeploymentsResponse",
     "AppDetail",
     "AppDetailResponse",
+    "AppDomain",
+    "AppDomainResponse",
+    "AppDomainsResponse",
     "AppEnvResponse",
     "AppListItem",
     "AppLogsResponse",
@@ -30,6 +33,7 @@ __all__ = [
     "CreateApiKeyInput",
     "CreateDatabaseInput",
     "CreatePixInvoiceInput",
+    "CreateTagInput",
     "CurrentPlanResponse",
     "DatabaseItem",
     "DatabaseResponse",
@@ -37,6 +41,9 @@ __all__ = [
     "DeployFromRepoInput",
     "DeployFromZipInput",
     "DeployRepository",
+    "DeploymentLogsResponse",
+    "DomainSslStatus",
+    "DomainStatus",
     "GithubStatusResponse",
     "InvoiceBilling",
     "InvoiceDetail",
@@ -50,8 +57,14 @@ __all__ = [
     "PlansListResponse",
     "RequestOptions",
     "Runtime",
+    "SetTagLinksInput",
+    "Tag",
+    "TagResponse",
+    "TagsListResponse",
+    "TransferAppInput",
     "UpdateApiKeyInput",
     "UpdateAppSettingsInput",
+    "UpdateTagInput",
 ]
 
 Runtime = Literal["node", "bun", "python"]
@@ -446,3 +459,89 @@ class GithubStatusResponse(TypedDict, total=False):
     installationId: str
     accountLogin: str
     appConfigured: bool
+
+
+# ── Domains, deployments, tags ───────────────────────────────────────────────
+
+DomainStatus = Literal["pending", "verified", "active", "failed", "released"]
+DomainSslStatus = Literal["none", "pending", "active", "failed"]
+
+
+class _OwnershipVerification(TypedDict):
+    name: str
+    value: str | None
+    type: str | None
+
+
+class AppDomain(TypedDict, total=False):
+    """A custom domain of an app. Point the CNAME at ``cnameTarget``, then verify it."""
+
+    id: str
+    appId: str | None
+    hostname: str
+    status: DomainStatus
+    sslStatus: DomainSslStatus
+    verificationErrors: str | None
+    """Stable ``DOMAIN_*`` code when verification failed, otherwise ``None``."""
+    verifiedAt: str | None
+    createdAt: str
+    updatedAt: str
+    cnameTarget: str
+    ownershipVerification: _OwnershipVerification | None
+
+
+class AppDomainsResponse(TypedDict):
+    success: Literal[True]
+    domains: list[AppDomain]
+
+
+class AppDomainResponse(TypedDict):
+    success: Literal[True]
+    domain: AppDomain
+
+
+class DeploymentLogsResponse(TypedDict):
+    success: Literal[True]
+    logs: str
+    logsStatus: str
+    """``pending``, ``available``, ``unavailable`` or ``skipped``."""
+
+
+class TransferAppInput(TypedDict):
+    targetOrganizationId: str
+
+
+class Tag(TypedDict, total=False):
+    """A workspace label for grouping apps and databases (a filter: no access, no quota)."""
+
+    id: str
+    name: str
+    color: str
+    appCount: int
+    databaseCount: int
+
+
+class TagsListResponse(TypedDict):
+    success: Literal[True]
+    tags: list[Tag]
+
+
+class TagResponse(TypedDict):
+    success: Literal[True]
+    tag: Tag
+
+
+class CreateTagInput(TypedDict, total=False):
+    name: str
+    color: str
+
+
+class UpdateTagInput(TypedDict, total=False):
+    name: str
+    color: str
+
+
+class SetTagLinksInput(TypedDict):
+    kind: Literal["app", "database"]
+    id: str
+    tagIds: list[str]

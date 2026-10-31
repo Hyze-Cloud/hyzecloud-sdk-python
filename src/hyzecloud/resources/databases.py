@@ -5,6 +5,7 @@ Mirrors ``src/resources/databases.ts`` of the TypeScript SDK.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from .._url import segment
@@ -90,6 +91,12 @@ class DatabasesResource:
     def stats(self, database_id: str) -> Any:
         """CPU / memory / connection stats."""
         return self._client.request("GET", f"/databases/{segment(database_id)}/stats")
+
+    def stats_many(self, database_ids: Sequence[str]) -> Any:
+        """Runtime stats of several databases in one call (other workspaces' ids are ignored)."""
+        return self._client.request(
+            "GET", "/databases/stats", query={"ids": ",".join(database_ids)}
+        )
 
     def logs(
         self, database_id: str, *, tail: int | None = None, timestamps: bool | None = None

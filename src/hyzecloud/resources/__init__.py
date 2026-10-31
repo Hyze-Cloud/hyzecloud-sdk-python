@@ -13,6 +13,7 @@ from .databases import DatabasesResource
 from .github import GithubResource
 from .invoices import InvoicesResource
 from .plans import PlansResource
+from .tags import TagsResource
 
 __all__ = [
     "ApiKeysResource",
@@ -21,4 +22,5 @@ __all__ = [
     "GithubResource",
     "InvoicesResource",
     "PlansResource",
+    "TagsResource",
 ]
